@@ -2,6 +2,8 @@
 library(psych)
 library(tidyverse)
 library(papaja)
+library(lavaan)
+library(rlang)
 
 options(mc.cores = parallel::detectCores()) ## Run chains in parallel
 export <- haven::read_spss("data/01_EXPORTED.sav")
@@ -10,14 +12,15 @@ export <- haven::read_spss("data/01_EXPORTED.sav")
 export[, c(2:5, 15, 17)] <- haven::as_factor(export[, c(2:5, 15, 17)])
 
 raw <- export %>%
-  mutate(att_checkbi = ifelse(att_check == 3, 1, 0),
-         condition = factor(condition, labels = c("Dynamic", "Static", "No norm")),
-         conditionbi = na_if(condition, "No norm") %>% droplevels(),
+  mutate(att_checkbi = ifelse(att_check == 3, 1, 0) %>% as_factor(.),
+         condition = as_factor(export$condition) %>% set_attrs(., labels = c("dynamic" = 1, "static" = 2, "none" = 3)),
          cons_proj = select(., cons_now_perc_1, cons_next_perc_1, cons_six_perc_1) %>% rowMeans(., na.rm = TRUE),
-         genderbi = na_if(gender, "Other") %>% droplevels(),
+         genderbi = na_if(gender, "Other") %>% droplevels() %>% recode_factor(., "Male" = -1, "Female" = 1),
+         women = recode_factor(gender, "Male" = -1, "Female" = 1, "Other" = 0),
          conformity_3 = 8 - conformity_3,
          conformity_mean = rowMeans(select(., starts_with("conformity_")), na.rm = TRUE)) %>%
-  rename_with(., .fn = ~ str_remove(., "_1"), .cols = c(interest_1:politics_1, meat_cons_1))
+  rename_with(., .fn = ~ str_remove(., "_1"), .cols = c(interest_1:politics_1, meat_cons_1)) %>%
+  cbind(., psych::dummy.code(.$condition))
 
 # excluding vegetarians and attention check fails
 complete <- raw %>% 
@@ -78,7 +81,7 @@ out_plots <- no_out %>%
 cron <- clean %>% select(conformity_1:conformity_6) %>% psych::alpha() # scale reliability
 
 # correlation matrix
-mcor = cor(clean[,c(5:8, 15, 24, 26)])
+mcor = cor(clean[,c(5:8, 15, 23, 25)])
 symnum(mcor)
 
 measure.tib <- tibble(Measure = c("1. Interest", "2. Attitude", "3. Expectation", "4. Intention", "5. Own consumption", "6. Projected consumption", "7. Conformity"),
@@ -94,6 +97,7 @@ gender_stat <- apa_print(chisq.test(clean$condition, clean$gender), n = nrow(cle
 nation_stat <- apa_print(chisq.test(clean$condition, clean$country), n = nrow(clean)) # nation
 
 # H1 ---------------------------
+## Does communicating a trending minority norm increase interest over and above communicating a minority norm only?
 outcomes_desc <- clean %>%
   group_by(condition) %>%
   summarise(n = n(),
@@ -107,10 +111,73 @@ outcomes_desc <- clean %>%
             sd_intent = sd(intention), .groups = "rowwise")
 
 h1.mod <- '
-interest       ~ conditionbi
-attitude  ~ conditionbi
-intention ~ conditionbi
-expectation    ~ conditionbi'
+interest       ~ static + none
+attitude  ~ static + none
+intention ~ static + none
+expectation    ~ static + none'
 
-h1.fit <- sem(model = simple.mod, data = clean, seed = 2019)
-h1.out <- summary(h1.fit)
+h1.fit <- sem(model = h1.mod, data = clean)
+h1.out <-  summary(h1.fit)
+
+# H2 ---------------------------
+##Will participants in the trending minority norm condition be more likely (than minority norm only) to expect a decrease in meat consumption by British people? 
+cons_desc <- clean %>%
+  group_by(condition) %>%
+  summarise(n = n(),
+            m_current = mean(cons_now_perc),
+            m_next = mean(cons_next_perc),
+            m_six = mean(cons_six_perc),
+            m_composite = mean(cons_proj),
+            sd_current = sd(cons_now_perc),
+            sd_next = sd(cons_next_perc),
+            sd_six = sd(cons_six_perc),
+            sd_composite = sd(cons_proj), .groups = "rowwise")
+
+h2.test <- apa_print(aov(cons_proj ~ condition, clean)) 
+
+# H3 ---------------------------
+##Does the perceived current and future popularity of sustainable eating behaviours correlate with interest, attitudes, expectations, and intentions to limit own meat consumption? 
+
+h3.mod <- '
+interest       ~ cons_proj
+attitude  ~ cons_proj
+intention ~ cons_proj
+expectation    ~ cons_proj'
+
+h3.fit <- sem(model = h3.mod, data = clean)
+h3.out <-  summary(h3.fit)
+
+# H4 ---------------------------
+##Is projected meat consumption a mediator of the effect of trending minority norms vs. minority only on meat consumption outcomes?
+
+h4.mod <- '
+interest       ~ a*cons_proj + b*static
+attitude  ~ c*cons_proj + d*static
+intention ~ e*cons_proj + f*static
+expectation    ~ g*cons_proj + h*static
+cons_proj ~ k*static
+
+ka := k*a
+kc := k*c
+ke := k*e
+kg := k*g
+totint := ka + b
+totatt := kc + d
+totintent := ke + f
+totexp := kg + h'
+
+h4.fit <- sem(h4.mod,data=clean, se="bootstrap", test="bootstrap", bootstrap = 5000, meanstructure=TRUE)
+h4.out <- summary(h4.fit, standardized=TRUE)
+h4.pam <- parameterEstimates(h4.fit)
+
+# H5 ---------------------------
+##How do demographic factors such as age, gender, and political position predict primary dependent variables relating to meat consumption? 
+
+h5.mod <- '
+interest       ~ static + cons_proj + age + genderbi + politics
+attitude  ~ static + cons_proj + age + genderbi + politics
+intention ~ static + cons_proj + age + genderbi + politics
+expectation    ~ static + cons_proj + age + genderbi + politics'
+
+h5.fit <- sem(model = h5.mod, data = clean)
+h5.out <- summary(h5.fit)
