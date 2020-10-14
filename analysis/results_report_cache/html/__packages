@@ -1,0 +1,17 @@
+base
+psych
+tidyverse
+ggplot2
+tibble
+tidyr
+readr
+purrr
+dplyr
+stringr
+forcats
+papaja
+lavaan
+rlang
+knitr
+kableExtra
+bfrr

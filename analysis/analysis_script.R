@@ -4,9 +4,15 @@ library(tidyverse)
 library(papaja)
 library(lavaan)
 library(rlang)
+library(knitr)
+library(kableExtra)
+library(bfrr)
 
-options(mc.cores = parallel::detectCores()) ## Run chains in parallel
-export <- haven::read_spss("data/01_EXPORTED.sav")
+set.seed(1234)
+options(mc.cores = parallel::detectCores(), ## Run chains in parallel
+        knitr.kable.NA = "") ## Don't show NAs in tables
+
+export <- haven::read_spss("../data/01_EXPORTED.sav")
 
 # Data cleaning ---------------------------
 export[, c(2:5, 15, 17)] <- haven::as_factor(export[, c(2:5, 15, 17)])
@@ -23,24 +29,51 @@ raw <- export %>%
   cbind(., psych::dummy.code(.$condition))
 
 # excluding vegetarians and attention check fails
-complete <- raw %>% 
-  filter(att_check == 1 | veg != 1)
+#complete <- raw %>% filter(att_check == 1)
+complete <- raw %>% filter(!is.na(conformity_1))
+noveg <- complete %>% filter(veg != "Yes")
 
 # excluding unneeded fields
-clean <- complete %>%
-  select(-RecordedDate, -veg, -att_check, -att_checkbi)
+clean <- noveg %>%
+  select(-RecordedDate, -veg, -att_check)
 
 # outliers
-mahalfiltered = mahalanobis(clean[,c(5:8, 24, 26)], colMeans(clean[,c(5:8, 24, 26)], na.rm = T), cov(clean[,c(5:8, 24, 26)]))
-cutoff = qchisq(1-.001, ncol(clean[,c(5:8, 24, 26)]))
-ncol(clean[,c(5:8, 24, 26)]) #df
+mahalfiltered = mahalanobis(clean[,c(5:13, 17:22)], colMeans(clean[,c(5:13, 17:22)], na.rm = T), cov(clean[,c(5:13, 17:22)]))
+cutoff = qchisq(1-.001, ncol(clean[,c(5:13, 17:22)]))
+ncol(clean[,c(5:13, 17:22)]) #df
 no_out = subset(clean, mahalfiltered < cutoff)
+
+# additivity
+mcor = cor(clean[,c(5:8, 15, 24, 27)], use = "pairwise.complete.obs")
+symnum(mcor)
+correl = cor(mcor[ , -1])
+symnum(correl) # Are any of the variables too highly correlated?
+
+##assumption set up
+random = rchisq(nrow(clean), 7)
+fake = lm(random ~., data = clean[ , -1])
+standardized = rstudent(fake)
+fitted = scale(fake$fitted.values)
+
+##multivariate normality
+hist(standardized)
+
+##multivariate linearity
+qqnorm(standardized)
+abline(0,1)
+
+##homog and s
+plot(fitted, standardized)
+abline(0,0)
+abline(v = 0)
 
 # Data Overview ---------------------------
 describeBy(clean, clean$condition) # check distribution and normality
 
 # participants
 data_desc <- c(total_n = nrow(raw),
+               incomp_n = nrow(raw) - nrow(complete),
+               veg_n = nrow(complete) - nrow(noveg),
                clean_n = nrow(clean)) 
 # age
 age_desc <- clean %>%
@@ -55,19 +88,18 @@ gender_freq <- round(100 * prop.table(table(clean$gender)), digits = 2)
 measure_sum <- clean %>%
   summarise(m_interest = mean(interest),
             m_attitude = mean(attitude),
-            m_expect = mean(expectation),
             m_intent = mean(intention),
+            m_expect = mean(expectation),
             m_cons = mean(meat_cons),
             m_cons_proj = mean(cons_proj),
-            m_conformity = mean(conformity_mean),
+            m_conformity = mean(conformity_mean, na.rm = T),
             sd_interest = sd(interest),
             sd_attitude = sd(attitude),
-            sd_expect = sd(expectation),
             sd_intent = sd(intention),
+            sd_expect = sd(expectation),
             sd_cons = sd(meat_cons),
             sd_cons_proj = sd(cons_proj),
-            sd_conformity = sd(conformity_mean)) %>%
-  printnum()
+            sd_conformity = sd(conformity_mean, na.rm = T))
 
 out_plots <- no_out %>%
   pivot_longer(cols = interest:expectation, names_to = "variable", values_to = "value") %>%
@@ -81,14 +113,10 @@ out_plots <- no_out %>%
 cron <- clean %>% select(conformity_1:conformity_6) %>% psych::alpha() # scale reliability
 
 # correlation matrix
-mcor = cor(clean[,c(5:8, 15, 23, 25)])
-symnum(mcor)
-
-measure.tib <- tibble(Measure = c("1. Interest", "2. Attitude", "3. Expectation", "4. Intention", "5. Own consumption", "6. Projected consumption", "7. Conformity"),
+measure.tib <- tibble(Measure = c("1. Interest", "2. Attitude", "3. Intention", "4. Expectation", "5. Own consumption", "6. Projected consumption", "7. Conformity"),
                       Mean = unlist(measure_sum[, 1:7]),
-                      SD = unlist(measure_sum[, 8:14]))
-
-cortable <- cbind(measure.tib, printnum(mcor)) %>% as_tibble()
+                      SD = unlist(measure_sum[, 8:14])) %>%
+  cbind(., mcor) %>% select(-conformity_mean) %>% remove_rownames() 
 
 # Randomization check ---------------------------
 age_stat <- apa_print(aov(age ~ condition, clean)) # age
@@ -103,12 +131,19 @@ outcomes_desc <- clean %>%
   summarise(n = n(),
             m_interest = mean(interest),
             m_attitude = mean(attitude),
-            m_expect = mean(expectation),
             m_intent = mean(intention),
+            m_expect = mean(expectation),
             sd_interest = sd(interest),
             sd_attitude = sd(attitude),
-            sd_expect = sd(expectation),
-            sd_intent = sd(intention), .groups = "rowwise")
+            sd_intent = sd(intention),
+            sd_expect = sd(expectation), .groups = "rowwise") %>% printnum()
+
+outcomes_tab <- paste(unlist(outcomes_desc[3:6]), unlist(outcomes_desc[7:10]), sep = ' $\\pm$ ')
+
+outcomes.tib <- tibble(Measure = c("1. Interest", "2. Attitude", "3. Intention", "4. Expectation"),
+                      Dynamic  = unlist(outcomes_tab[c(3,6,9,12)]),
+                      Static   = unlist(outcomes_tab[c(1,4,7,10)]),
+                      None     = unlist(outcomes_tab[c(2,5,8,11)]))
 
 h1.mod <- '
 interest       ~ static + none
@@ -117,7 +152,16 @@ intention ~ static + none
 expectation    ~ static + none'
 
 h1.fit <- sem(model = h1.mod, data = clean)
-h1.out <-  summary(h1.fit)
+h1.out <-  summary(h1.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
+
+# effect sizes
+h1.effect <- sapply(1:8, function(x) bfrr(-1*h1.out$PE[x, 5],h1.out$PE[x,6], sample_df = h1.out$FIT["ntotal"] - 1, model = "normal", mean = 0, sd = 5, tail = 1, criterion = 3,
+                                          rr_interval = list(mean = c(-15, 15), sd = c(0, 15)), precision = 0.05))[-14,]
+
+h1.rr <- sapply(1:8, function(x) paste0("HN[", toString(h1.effect[,x]$RR$sd), "]"))
+
+h1.table <- cbind(h1.out$PE[1:8,c(1, 3, 5, 12, 6:10)], unlist(h1.effect[3,]), h1.rr, unlist(h1.effect[5,])) %>% .[with(., order(rhs, decreasing = TRUE)), ] %>% select(., -2) %>%
+  mutate(pvalue = printp(pvalue))
 
 # H2 ---------------------------
 ##Will participants in the trending minority norm condition be more likely (than minority norm only) to expect a decrease in meat consumption by British people? 
@@ -145,7 +189,16 @@ intention ~ cons_proj
 expectation    ~ cons_proj'
 
 h3.fit <- sem(model = h3.mod, data = clean)
-h3.out <-  summary(h3.fit)
+h3.out <-  summary(h3.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
+
+# effect sizes
+h3.effect <- sapply(1:4, function(x) bfrr(h3.out$PE[x, 5],h3.out$PE[x,6], sample_df = h3.out$FIT["ntotal"] - 1, model = "normal", mean = 0, sd = 5, tail = 1, criterion = 3,
+                                          rr_interval = list(mean = c(-15, 15), sd = c(0, 15)), precision = 0.05))[-14,]
+
+h3.rr <- sapply(1:4, function(x) paste0("HN[", toString(h3.effect[,x]$RR$sd), "]"))
+
+h3.table <- cbind(h3.out$PE[1:4, c(1, 3, 5, 11, 6:10)], unlist(h3.effect[3,]), h3.rr, unlist(h3.effect[5,])) %>% select(., -2) %>%
+  mutate(pvalue = printp(pvalue))
 
 # H4 ---------------------------
 ##Is projected meat consumption a mediator of the effect of trending minority norms vs. minority only on meat consumption outcomes?
@@ -155,20 +208,29 @@ interest       ~ a*cons_proj + b*static
 attitude  ~ c*cons_proj + d*static
 intention ~ e*cons_proj + f*static
 expectation    ~ g*cons_proj + h*static
-cons_proj ~ k*static
+cons_proj ~ t*static
 
-ka := k*a
-kc := k*c
-ke := k*e
-kg := k*g
-totint := ka + b
-totatt := kc + d
-totintent := ke + f
-totexp := kg + h'
+ta := t*a
+tc := t*c
+te := t*e
+tg := t*g
+totint := ta + b
+totatt := tc + d
+totintent := te + f
+totexp := tg + h'
 
 h4.fit <- sem(h4.mod,data=clean, se="bootstrap", test="bootstrap", bootstrap = 5000, meanstructure=TRUE)
-h4.out <- summary(h4.fit, standardized=TRUE)
+h4.out <- summary(h4.fit, standardized = T, ci = T, fit.measures = T)
 h4.pam <- parameterEstimates(h4.fit)
+
+# effect sizes
+h4.table <- h4.out$PE[c(1:9, 28:35),c(1, 3, 6, 13, 7:11)] %>% .[with(., order(rhs, decreasing = FALSE)), ]
+h4.table <- rbind("", h4.table[1:4,], "", h4.table[5:17,] ) %>%
+  mutate_at(vars(3:9), ~as.numeric(as.character(.))) %>%
+  mutate(pvalue = printp(pvalue),
+         lhs = c("~ Projected consumption", "Interest", "Attitude", "Intention", "Expectation", "~ Condition", "Interest", "Attitude", "Intention", "Expectation", "Projected consumption", 
+                 "Interest", "Attitude", "Intention", "Expectation", "Interest", "Attitude", "Intention", "Expectation")) %>% 
+  select(., -2)
 
 # H5 ---------------------------
 ##How do demographic factors such as age, gender, and political position predict primary dependent variables relating to meat consumption? 
@@ -180,4 +242,8 @@ intention ~ static + cons_proj + age + genderbi + politics
 expectation    ~ static + cons_proj + age + genderbi + politics'
 
 h5.fit <- sem(model = h5.mod, data = clean)
-h5.out <- summary(h5.fit)
+h5.out <- summary(h5.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
+
+h5.table <- h5.out$PE[1:20,c(3, 5, 12, 6:10)] %>%
+  mutate(pvalue = printp(pvalue),
+         rhs = rep(c("Condition", "Projected consumption", "Age", "Gender", "Politics"), 4))

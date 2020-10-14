@@ -1,0 +1,149 @@
+---
+title: "Study 3: Results Overview"
+output: 
+  bookdown::html_document2:
+    theme: journal
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    highlight: pygments
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALSE)
+source("analysis_script.R")
+```
+
+# Methods  {.tabset .tabset-pills}
+
+## Design and procedure
+
+A double blind, between-participants experimental design was employed in the study. The study was presented as a survey on attitudes toward meat consumption. All participants were directed from their recruitment platform to a Qualtrics survey. There were 3 conditions. In the experimental condition, participants read a normative statement depicting a trending minority norm. In the control conditions, participants either read a statement depicting a minority norm, or did not read any text and so proceeded to the dependent measures without an intervening task. 
+
+After participants read the statements, they completed dependent measures relating to meat consumption, followed by demographic questions and a measure of conformity.
+
+## Participants
+
+A total of `r data_desc[[1]]` participants were recruited through a survey posted on Prolific. `r data_desc[[2]]` were excluded due to incomplete responses, and `r data_desc[[3]]` were excluded as they are vegan/vegetarian. The final sample (*N* = `r data_desc[[4]]`) ranged in age `r age_desc$min_age` to `r age_desc$max_age` (*M~age~* = `r age_desc$m_age`, *SD* = `r age_desc$sd_age`). The participants were predominantly female (`r gender_freq[2]`%). The participants received £0.35 ($0.45) for successfully completing the task.
+
+## Normative statements
+
+**Trending norm.** In the trending norm condition, the text read: 
+‘Research from early 2020 has found that 48% of British people engage in one or more of the following behaviours: 
+
+•	Eating small portions of meat
+•	Opting out of eating meat several days of the week
+•	Adopting a vegan/vegetarian diet
+
+This has increased from 37% in 2018.’
+
+**Minority norm.** In the minority norm condition, the text read: 
+‘Research from early 2020 has found that 48% of British people engage in one or more of the following behaviours:
+
+•	Eating small portions of meat
+•	Opting out of eating meat several days of the week
+•	Adopting a vegan/vegetarian diet’
+
+**No norm control.** The no norm control condition did not have any text.
+
+## Measures
+
+**Demographic questions.** Participants answered questions relating to their demographic characteristics (e.g., age, gender, political position; see Appendix A).
+
+**Dependent measures.** We measured interest in eating less meat, attitudes towards eating meat, intentions and expectations to limit own meat consumption. Additionally, we measured expectations about future meat consumption. All primary outcomes were measured using single item measures.
+
+_Interest._ To measure interest in limiting meat consumption, participants responded to the statement: “I am interested in eating less meat” on a 0-100 scale (0 = Not at all interested, 50 = Somewhat interested, 100 = Extremely interested).
+
+_Attitudes._ To measure attitudes, participants responded to the statement: “My attitude towards eating less meat is…” on a 0-100 slider scale (0 = Extremely unfavourable, 50 = Neither unfavourable nor favourable, 100 = Extremely favourable).
+
+_Intentions._ To measure intentions, participants responded to the statement: “I intend to eat less meat within the next year” on a 0-100 slider scale (0 = Very strongly disagree, 50 = Neither agree nor disagree, 100 = Very strongly agree). 
+
+_Expectations_. To measure expectations, participants responded to the statement: “I expect to eat less meat within the next year” on a 0-100 slider scale (0 = Very strongly disagree, 50 = Neither agree nor disagree, 100 = Very strongly agree).
+
+_Estimates of future meat consumption._ Participants responded to 3 statements estimating the meat consumption of British people “THIS year,” “NEXT year,” and “SIX years from now”. The questions were answered on a slider scale from 0-100%.
+
+_Controlled variables._ To control for participants’ background, participants reported their political position (1 = very left wing, 7 = very right wing), age, gender, and whether they were vegan or vegetarian. We also measured conformity using 6 items from the Iowa-Netherlands Comparison Orientation Measure (Gibbons & Buunk, 1999) on a 7-point Likert scale (1 = strongly disagree, 7 = strongly agree). 
+
+# Results
+
+## Overview {.tabset .tabset-pills}
+
+### Randomization check
+
+A preliminary randomization check was conducted. The check revealed no systematic differences between the three conditions in gender, age, political position, and home country (all *p*’s > .05).
+
+### Reliability and inter-correlations
+```{r correlation, results = "asis", cache=TRUE}
+measure.tib %>%
+  kable(format = "html", caption = "Means (M), standard deviations (SD), and inter-correlations among study measures.", col.names = c("Measure", "$M$", "$SD$", 1:6), digits = 2, escape = F) %>% 
+  add_header_above(c(" " = 3, "Correlations" = 6)) %>%
+  kable_styling()
+```
+
+## Does trending norm (versus minority norm) information lead to more positive attitudes, intentions, interest, and expectations to limit own meat consumption?
+
+```{r outcomes, results = "asis", cache=TRUE}
+outcomes.tib %>%
+  kable(format = "html", caption = "Outcomes by condition", digits = 2, escape = F) %>% 
+  add_header_above(c(" " = 1, "Conditions" = 3)) %>%
+  kable_styling()
+```
+
+```{r h1path, results='asis', cache=TRUE}
+h1.table %>% 
+  kable(format = "html", caption = "Path model (outcomes ~ condition)", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$p$", "Lower", "Upper", "$B_{{H}(0, 5)}$", "RR", "Conclusion"), digits = 2) %>%
+  add_header_above(c(" " = 6, "95% CI" = 2, "Bayesian inference" = 3)) %>%
+  kable_styling() %>%
+  pack_rows("Trending vs. minority", 1, 4) %>%
+  pack_rows("Trending vs. none", 5, 8) %>%
+  footnote(general = paste0("Model fit. $\\chi^2$(", h1.out$FIT[["baseline.df"]], ", N = ", h1.out$FIT[["ntotal"]], ") = ", round(h1.out$FIT[["baseline.chisq"]],2), ", $p$ ", printp(h1.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h1.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h1.out$FIT[["rmsea"]])))
+```
+
+## Will participants in the trending minority norm condition be more likely (than minority norm only) to expect a decrease in meat consumption by British people? 
+
+`r h2.test$full_result$condition`
+
+```{r h2path, results = "asis", cache=TRUE}
+cons_desc[c(1:2, 6, 10)] %>%
+  kable(format = "html", caption = "Projected consumption average by condition", col.names = c("Condition", "n",  "$M$", "$SD$"), escape = F, digits = 2) %>% 
+  kable_styling()
+```
+
+## Does the perceived current and future popularity of sustainable eating behaviours correlate with interest, attitudes, expectations, and intentions to limit own meat consumption? 
+
+```{r h3path, results='asis', cache=TRUE}
+h3.table %>% 
+  kable(format = "html", caption = "Path model (outcomes ~ projected consumption)", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$p$", "Lower", "Upper", "$B_{{H}(0, 5)}$", "RR", "Conclusion"), digits = 2) %>%
+  add_header_above(c(" " = 6, "95% CI" = 2, "Bayesian inference" = 3)) %>%
+  kable_styling() %>%
+  footnote(general = paste0("Model fit. $\\chi^2($", h3.out$FIT[["baseline.df"]], ", N = ", h3.out$FIT[["ntotal"]], ") = ", round(h3.out$FIT[["baseline.chisq"]],2), ", $p$ ", printp(h3.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h3.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h3.out$FIT[["rmsea"]])))
+```
+
+
+
+## Is projected meat consumption a mediator of the effect of trending minority norms vs. minority only on meat consumption outcomes?
+
+```{r h4path, results='asis', cache=TRUE}
+h4.table %>% 
+  kable(format = "html", caption = "Mediation model", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$p$", "Lower", "Upper"), digits = 2) %>%
+  add_header_above(c(" " = 6, "95% CI" = 2)) %>%
+  kable_styling() %>%
+  pack_rows("Direct effects", 1, 11) %>%
+  pack_rows("Indirect effects (~ condition > projected consumption)", 12, 15) %>%
+  pack_rows("Total effects (~ condition + condition > projected consumption)", 16, 19) %>%
+  footnote(general = paste0("Model fit. $\\chi^2$(", h4.out$FIT[["baseline.df"]], ", N = ", h4.out$FIT[["ntotal"]], ") = ", round(h4.out$FIT[["baseline.chisq"]],2), ", $p$ ", printp(h4.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h4.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h4.out$FIT[["rmsea"]])))
+```
+
+## How do demographic factors such as age, gender, and political position predict primary dependent variables relating to meat consumption?
+```{r h5path, results='asis', cache=TRUE}
+h5.table %>% 
+  kable(format = "html", caption = "Full model", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$p$", "Lower", "Upper"), digits = 2) %>%
+  add_header_above(c(" " = 6, "95% CI" = 2)) %>%
+  kable_styling() %>%
+  pack_rows(paste0("Interest ~ ($R$ = ", scales::percent(h5.out$PE[46,5]), ")"), 1, 5) %>%
+  pack_rows(paste0("Attitude ~ ($R$ = ", scales::percent(h5.out$PE[47,5]), ")"), 6, 10) %>%
+  pack_rows(paste0("Intention ~ ($R$ = ", scales::percent(h5.out$PE[48,5]), ")"), 11, 15) %>%
+  pack_rows(paste0("Expectation ~ ($R$ = ", scales::percent(h5.out$PE[49,5]), ")"), 16, 20) %>%
+  footnote(general = paste0("Model fit. $\\chi^2$(", h5.out$FIT[["baseline.df"]], ", N = ", h5.out$FIT[["ntotal"]], ") = ", round(h5.out$FIT[["baseline.chisq"]],2), ", $p$ ", printp(h5.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h5.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h5.out$FIT[["rmsea"]])))
+```
