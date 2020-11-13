@@ -7,6 +7,8 @@ library(rlang)
 library(knitr)
 library(kableExtra)
 library(bfrr)
+library(codebook)
+library(svglite)
 
 set.seed(1234)
 options(mc.cores = parallel::detectCores(), ## Run chains in parallel
@@ -22,7 +24,6 @@ raw <- export %>%
          condition = as_factor(export$condition) %>% set_attrs(., labels = c("dynamic" = 1, "static" = 2, "none" = 3)),
          cons_proj = select(., cons_now_perc_1, cons_next_perc_1, cons_six_perc_1) %>% rowMeans(., na.rm = TRUE),
          genderbi = na_if(gender, "Other") %>% droplevels() %>% recode_factor(., "Male" = -1, "Female" = 1),
-         women = recode_factor(gender, "Male" = -1, "Female" = 1, "Other" = 0),
          conformity_3 = 8 - conformity_3,
          conformity_mean = rowMeans(select(., starts_with("conformity_")), na.rm = TRUE)) %>%
   rename_with(., .fn = ~ str_remove(., "_1"), .cols = c(interest_1:politics_1, meat_cons_1)) %>%
@@ -40,14 +41,11 @@ clean <- noveg %>%
 # outliers
 mahalfiltered = mahalanobis(clean[,c(5:13, 17:22)], colMeans(clean[,c(5:13, 17:22)], na.rm = T), cov(clean[,c(5:13, 17:22)]))
 cutoff = qchisq(1-.001, ncol(clean[,c(5:13, 17:22)]))
-ncol(clean[,c(5:13, 17:22)]) #df
 no_out = subset(clean, mahalfiltered < cutoff)
 
-# additivity
-mcor = cor(clean[,c(5:8, 15, 24, 27)], use = "pairwise.complete.obs")
+# correlation
+mcor = cor(clean[,c(5:8, 15, 24, 26)], use = "pairwise.complete.obs")
 symnum(mcor)
-correl = cor(mcor[ , -1])
-symnum(correl) # Are any of the variables too highly correlated?
 
 ##assumption set up
 random = rchisq(nrow(clean), 7)
@@ -55,17 +53,10 @@ fake = lm(random ~., data = clean[ , -1])
 standardized = rstudent(fake)
 fitted = scale(fake$fitted.values)
 
-##multivariate normality
-hist(standardized)
-
-##multivariate linearity
-qqnorm(standardized)
-abline(0,1)
-
-##homog and s
-plot(fitted, standardized)
-abline(0,0)
-abline(v = 0)
+assumptions <- list(additivity = cor(mcor[ , -1]) %>% symnum(),
+                    homogeneity = plot(fitted, standardized) + abline(0,0) + abline(v = 0), ##homog and s
+                    normality = hist(standardized), ##multivariate normality
+                    linearity = qqnorm(standardized)) ##multivariate linearity
 
 # Data Overview ---------------------------
 describeBy(clean, clean$condition) # check distribution and normality
@@ -101,13 +92,31 @@ measure_sum <- clean %>%
             sd_cons_proj = sd(cons_proj),
             sd_conformity = sd(conformity_mean, na.rm = T))
 
-out_plots <- no_out %>%
+out_plots <- clean %>%
   pivot_longer(cols = interest:expectation, names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = condition, y = value)) +
-  facet_wrap(~ variable) +
+  facet_wrap(~ variable, labeller = as_labeller(c('attitude'="Attitude", 'expectation'="Expectation", 'intention'="Intention", 'interest'="Interest"))) +
   geom_violin(trim = FALSE) + 
   stat_summary(fun.data = "mean_sdl",  fun.args = list(mult = 1), geom = "pointrange", color = "black") +
-  ggtitle("Distribution of outcome variables by condition")
+  ggtitle("Figure 1. Distribution of outcome variables by condition") +
+  xlab("Norm Condition") +
+  ylab("Value (%)") +
+  scale_x_discrete(limits = c("dynamic", "static", "none"), labels=c("dynamic" = "Trending", "static" = "Minority","none" = "None")) +
+  papaja::theme_apa()
+
+scat_plots <- clean %>%
+  pivot_longer(cols = interest:expectation, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = cons_proj, y = value)) +
+  facet_wrap(~ variable, labeller = as_labeller(c('attitude'="Attitude", 'expectation'="Expectation", 'intention'="Intention", 'interest'="Interest"))) +
+  geom_smooth(aes(color = condition), method = loess, se = F) +
+  stat_summary(fun.data = "mean_cl_boot", geom = "point", size = 0.5, alpha = 0.4) +
+  ggtitle("Figure 1. Relationship between projected consumption and outcome variables") +
+  xlab("Projected consumption (% limiting meat eating)") +
+  ylab("Value of outcome (%)") +
+  papaja::theme_apa()
+
+ggsave(file="test.svg", plot=out_plots)
+ggsave(file="test2.svg", plot=scat_plots)
 
 # reliability
 cron <- clean %>% select(conformity_1:conformity_6) %>% psych::alpha() # scale reliability
@@ -141,8 +150,8 @@ outcomes_desc <- clean %>%
 outcomes_tab <- paste(unlist(outcomes_desc[3:6]), unlist(outcomes_desc[7:10]), sep = ' $\\pm$ ')
 
 outcomes.tib <- tibble(Measure = c("1. Interest", "2. Attitude", "3. Intention", "4. Expectation"),
-                      Dynamic  = unlist(outcomes_tab[c(3,6,9,12)]),
-                      Static   = unlist(outcomes_tab[c(1,4,7,10)]),
+                      Trending = unlist(outcomes_tab[c(3,6,9,12)]),
+                      Minority = unlist(outcomes_tab[c(1,4,7,10)]),
                       None     = unlist(outcomes_tab[c(2,5,8,11)]))
 
 h1.mod <- '
@@ -246,4 +255,4 @@ h5.out <- summary(h5.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
 
 h5.table <- h5.out$PE[1:20,c(3, 5, 12, 6:10)] %>%
   mutate(pvalue = printp(pvalue),
-         rhs = rep(c("Condition", "Projected consumption", "Age", "Gender", "Politics"), 4))
+         rhs = rep(c("Condition$^a$", "Projected consumption", "Age", "Gender$^b$", "Politics$^c$"), 4))

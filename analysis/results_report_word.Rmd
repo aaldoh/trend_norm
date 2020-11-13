@@ -1,19 +1,26 @@
 ---
-title: "Study 3: Results Overview"
-output: 
-  bookdown::html_document2:
-    theme: journal
-    toc: true
-    toc_depth: 2
-    toc_float: true
-    highlight: pygments
-    code_folding: hide
+title             : "Normative information and meat consumption"
+shorttitle        : "The effect of dynamic norms"
+author: 
+  - name          : "Alaa AlDoh"
+    affiliation   : "1"
+    corresponding : yes    # Define only one corresponding author
+    address       : "Postal address"
+    email         : "a.aldoh@sussex.ac.uk"
+affiliation:
+  - id            : "1"
+    institution   : "University of Sussex"
+keywords          : "dynamic norm, sustainability"
+wordcount         : "X"
+documentclass: "apa6"
+output: papaja::apa6_word
+always_allow_html: true
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALSE, autodep = TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALSE)
 source("analysis_script.R")
-ggplot2::theme_set(theme_apa())
+ggplot2::theme_set(ggplot2::theme_bw())
 ```
 
 # Methods  {.tabset .tabset-pills}
@@ -77,36 +84,33 @@ A preliminary randomization check was conducted. The check revealed no systemati
 ### Reliability and inter-correlations
 ```{r correlation, results = "asis", cache=TRUE}
 measure.tib %>%
-  kable(caption = "Means (M), standard deviations (SD), and inter-correlations among study measures.", col.names = c("Measure", "$M$", "$SD$", 1:6), digits = 2, escape = F) %>% 
+  kable(format = "html", caption = "Means (M), standard deviations (SD), and inter-correlations among study measures.", col.names = c("Measure", "$M$", "$SD$", 1:6), digits = 2, escape = F) %>% 
   add_header_above(c(" " = 3, "Correlations" = 6)) %>%
   kable_styling()
 ```
 
 ## Does trending norm (versus minority norm) information lead to more positive attitudes, intentions, interest, and expectations to limit own meat consumption?
 
-```{r h1plots, cache=TRUE, fig.cap = "Violin plots of outcome variables by condition"}
+```{r h1plots, cache=TRUE}
 out_plots
 ```
 
+
 ```{r outcomes, results = "asis", cache=TRUE}
 outcomes.tib %>%
-  kable(caption = "Outcomes by condition ($M$ $\\pm$ $SD$)", digits = 2, escape = F) %>% 
+  kable(format = "html", caption = "Outcomes by condition", digits = 2, escape = F) %>% 
   add_header_above(c(" " = 1, "Conditions" = 3)) %>%
   kable_styling()
 ```
 
 ```{r h1path, results='asis', cache=TRUE}
 h1.table %>% 
-  kable(caption = "Path model (outcomes ~ condition)", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$\\textit{p}$", "$LL$", "$UL$", "$B_{{H}(0, 5)}$", "RR", "Conclusion$^a$"), digits = 2) %>%
+  kable(format = "html", caption = "Path model (outcomes ~ condition)", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$p$", "Lower", "Upper", "$B_{{H}(0, 5)}$", "RR", "Conclusion"), digits = 2) %>%
   add_header_above(c(" " = 6, "95% CI" = 2, "Bayesian inference" = 3)) %>%
   kable_styling() %>%
   pack_rows("Trending vs. minority", 1, 4) %>%
   pack_rows("Trending vs. none", 5, 8) %>%
-  footnote(general_title = "Note.",
-           general = paste0("CI = confidence interval; $LL$ = lower limit; $UL$ = upper limit. Model fit: $\\chi^2$(", h1.out$FIT[["baseline.df"]], ", N = ", h1.out$FIT[["ntotal"]], ") = ", round(h1.out$FIT[["baseline.chisq"]],2), ", $\\textit{p}$ ",
-                            printp(h1.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h1.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h1.out$FIT[["rmsea"]])),
-           alphabet = c("H0 = evidence for null hypothesis, no = no conclusion, H1 = evidence for alternative hypothesis."),
-           footnote_as_chunk = T)
+  footnote(general = paste0("Model fit. $\\chi^2$(", h1.out$FIT[["baseline.df"]], ", N = ", h1.out$FIT[["ntotal"]], ") = ", round(h1.out$FIT[["baseline.chisq"]],2), ", $p$ ", printp(h1.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h1.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h1.out$FIT[["rmsea"]])))
 ```
 
 ## Will participants in the trending minority norm condition be more likely (than minority norm only) to expect a decrease in meat consumption by British people? 
@@ -115,7 +119,7 @@ h1.table %>%
 
 ```{r h2path, results = "asis", cache=TRUE}
 cons_desc[c(1:2, 6, 10)] %>%
-  kable(caption = "Projected consumption average by condition", col.names = c("Condition", "n",  "$M$", "$SD$"), escape = F, digits = 2) %>% 
+  kable(format = "html", caption = "Projected consumption average by condition", col.names = c("Condition", "n",  "$M$", "$SD$"), escape = F, digits = 2) %>% 
   kable_styling()
 ```
 
@@ -123,51 +127,36 @@ cons_desc[c(1:2, 6, 10)] %>%
 
 ```{r h3path, results='asis', cache=TRUE}
 h3.table %>% 
-  kable(caption = "Path model (outcomes ~ projected consumption)", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$\\textit{p}$", "$LL$", "$UL$", "$B_{{H}(0, 5)}$", "RR", "Conclusion$^a$"), digits = 2) %>%
+  kable(format = "html", caption = "Path model (outcomes ~ projected consumption)", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$p$", "Lower", "Upper", "$B_{{H}(0, 5)}$", "RR", "Conclusion"), digits = 2) %>%
   add_header_above(c(" " = 6, "95% CI" = 2, "Bayesian inference" = 3)) %>%
   kable_styling() %>%
-  footnote(general_title = "Note.",
-           general = paste0("CI = confidence interval; $LL$ = lower limit; $UL$ = upper limit. Model fit: $\\chi^2($", h3.out$FIT[["baseline.df"]], ", N = ", h3.out$FIT[["ntotal"]], ") = ", round(h3.out$FIT[["baseline.chisq"]],2), ", $\\textit{p}$ ",
-                            printp(h3.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h3.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h3.out$FIT[["rmsea"]])),
-           alphabet = c("H0 = evidence for null hypothesis, no = no conclusion, H1 = evidence for alternative hypothesis."),
-           footnote_as_chunk = T)
+  footnote(general = paste0("Model fit. $\\chi^2($", h3.out$FIT[["baseline.df"]], ", N = ", h3.out$FIT[["ntotal"]], ") = ", round(h3.out$FIT[["baseline.chisq"]],2), ", $p$ ", printp(h3.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h3.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h3.out$FIT[["rmsea"]])))
 ```
+
+
 
 ## Is projected meat consumption a mediator of the effect of trending minority norms vs. minority only on meat consumption outcomes?
 
 ```{r h4path, results='asis', cache=TRUE}
 h4.table %>% 
-  kable(caption = "Mediation model", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$\\textit{p}$", "$LL$", "$UL$"), digits = 2) %>%
+  kable(format = "html", caption = "Mediation model", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$p$", "Lower", "Upper"), digits = 2) %>%
   add_header_above(c(" " = 6, "95% CI" = 2)) %>%
   kable_styling() %>%
   pack_rows("Direct effects", 1, 11) %>%
   pack_rows("Indirect effects (~ condition > projected consumption)", 12, 15) %>%
   pack_rows("Total effects (~ condition + condition > projected consumption)", 16, 19) %>%
-  footnote(general_title = "Note.",
-           general = paste0("CI = confidence interval; $LL$ = lower limit; $UL$ = upper limit. Model fit: $\\chi^2$(", h4.out$FIT[["baseline.df"]], ", N = ", h4.out$FIT[["ntotal"]], ") = ", round(h4.out$FIT[["baseline.chisq"]],2), ", $\\textit{p}$ ",
-                            printp(h4.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h4.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h4.out$FIT[["rmsea"]])),
-           footnote_as_chunk = T)
+  footnote(general = paste0("Model fit. $\\chi^2$(", h4.out$FIT[["baseline.df"]], ", N = ", h4.out$FIT[["ntotal"]], ") = ", round(h4.out$FIT[["baseline.chisq"]],2), ", $p$ ", printp(h4.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h4.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h4.out$FIT[["rmsea"]])))
 ```
 
 ## How do demographic factors such as age, gender, and political position predict primary dependent variables relating to meat consumption?
 ```{r h5path, results='asis', cache=TRUE}
 h5.table %>% 
-  kable(caption = "Full model", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$\\textit{p}$", "$LL$", "$UL$"), digits = 2) %>%
+  kable(format = "html", caption = "Full model", row.names = F, escape = F, col.names = c("Model path", "$\\beta$", "$B$", "$SE$", "$z$", "$p$", "Lower", "Upper"), digits = 2) %>%
   add_header_above(c(" " = 6, "95% CI" = 2)) %>%
   kable_styling() %>%
   pack_rows(paste0("Interest ~ ($R$ = ", scales::percent(h5.out$PE[46,5]), ")"), 1, 5) %>%
   pack_rows(paste0("Attitude ~ ($R$ = ", scales::percent(h5.out$PE[47,5]), ")"), 6, 10) %>%
   pack_rows(paste0("Intention ~ ($R$ = ", scales::percent(h5.out$PE[48,5]), ")"), 11, 15) %>%
   pack_rows(paste0("Expectation ~ ($R$ = ", scales::percent(h5.out$PE[49,5]), ")"), 16, 20) %>%
-  footnote(general_title = "Note.",
-           general = paste0("CI = confidence interval; $LL$ = lower limit; $UL$ = upper limit. Model fit: $\\chi^2$(", h5.out$FIT[["baseline.df"]], ", N = ", h5.out$FIT[["ntotal"]], ") = ", round(h5.out$FIT[["baseline.chisq"]],2), ", $\\textit{p}$ ",
-                            printp(h5.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h5.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h5.out$FIT[["rmsea"]])),
-           alphabet = c("Trending compared to minority norms; ", "Binary coded, 0 = Male, 1 = Female; ", "Scaled from left to right wing"))
+  footnote(general = paste0("Model fit. $\\chi^2$(", h5.out$FIT[["baseline.df"]], ", N = ", h5.out$FIT[["ntotal"]], ") = ", round(h5.out$FIT[["baseline.chisq"]],2), ", $p$ ", printp(h5.out$FIT[["baseline.pvalue"]]), "; CFI = ", printnum(h5.out$FIT[["cfi"]]), "; RMSEA = ", printnum(h5.out$FIT[["rmsea"]])))
 ```
-
-# Codebook
-
-```{r codebook}
-codebook::codebook_table(clean) %>% kable()
-```
-

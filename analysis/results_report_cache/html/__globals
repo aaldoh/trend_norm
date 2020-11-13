@@ -1,0 +1,9 @@
+correlation	%>%	add_header_above	c	F	kable	kable_styling	measure.tib
+h1plots	out_plots
+outcomes	%>%	add_header_above	c	F	kable	kable_styling	outcomes.tib
+h1path	[[	%>%	$	add_header_above	c	F	footnote	h1.out	h1.table	kable	kable_styling	pack_rows	paste0	printnum	printp	round	T
+h2path	%>%	c	cons_desc	F	kable	kable_styling
+h3path	[[	%>%	$	add_header_above	c	F	footnote	h3.out	h3.table	kable	kable_styling	paste0	printnum	printp	round	T
+h4path	[[	%>%	$	add_header_above	c	F	footnote	h4.out	h4.table	kable	kable_styling	pack_rows	paste0	printnum	printp	round	T
+h5path	::	[[	%>%	$	add_header_above	c	F	footnote	h5.out	h5.table	kable	kable_styling	pack_rows	paste0	printnum	printp	round
+codebook	::	%>%	clean	kable
