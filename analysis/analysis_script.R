@@ -33,7 +33,7 @@ noveg <- complete %>% filter(veg != "Yes")
 # excluding unneeded fields
 clean <- noveg %>%
   select(-RecordedDate, -veg, -att_check) %>%
-  mutate(condition = relevel(clean$condition, "dynamic"),
+  mutate(condition = relevel(condition, "dynamic"),
          cons_proj_c = cons_proj - mean(cons_proj), #centering projected cons
          conformity_mean_c = conformity_mean - mean(conformity_mean)) %>% #centering conformity
   cbind(., psych::dummy.code(.$condition))
