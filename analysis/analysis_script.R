@@ -1,14 +1,11 @@
+# author: Alaa AlDoh
+# contact: az.aldoh@gmail.com/a.aldoh@sussex.ac.uk
+
 # Load packages ---------------------------
-library(psych)
-library(tidyverse)
-library(papaja)
-library(lavaan)
-library(rlang)
-library(knitr)
-library(kableExtra)
-library(bfrr)
-library(codebook)
-library(svglite)
+list.of.packages <- c("svglite", "ggplot2", "papaja", "lavaan", "tidyverse", "knitr", "kableExtra", "codebook", "psych", "rlang", "bfrr")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+lapply(list.of.packages, require, character.only = TRUE)
 
 set.seed(1234)
 options(mc.cores = parallel::detectCores(), ## Run chains in parallel
@@ -21,13 +18,12 @@ export[, c(2:5, 15, 17)] <- haven::as_factor(export[, c(2:5, 15, 17)])
 
 raw <- export %>%
   mutate(att_checkbi = ifelse(att_check == 3, 1, 0) %>% as_factor(.),
-         condition = as_factor(export$condition) %>% set_attrs(., labels = c("dynamic" = 1, "static" = 2, "none" = 3)),
+         condition = as_factor(export$condition) %>% set_attrs(., labels = c("dynamic" = 1, "static" = 2, "none" = 3)) %>% relevel(., "dynamic"),
          cons_proj = select(., cons_now_perc_1, cons_next_perc_1, cons_six_perc_1) %>% rowMeans(., na.rm = TRUE),
          genderbi = na_if(gender, "Other") %>% droplevels() %>% recode_factor(., "Male" = -1, "Female" = 1),
          conformity_3 = 8 - conformity_3,
          conformity_mean = rowMeans(select(., starts_with("conformity_")), na.rm = TRUE)) %>%
-  rename_with(., .fn = ~ str_remove(., "_1"), .cols = c(interest_1:politics_1, meat_cons_1)) %>%
-  cbind(., psych::dummy.code(.$condition))
+  rename_with(., .fn = ~ str_remove(., "_1"), .cols = c(interest_1:politics_1, meat_cons_1))
 
 # excluding vegetarians and attention check fails
 #complete <- raw %>% filter(att_check == 1)
@@ -36,7 +32,11 @@ noveg <- complete %>% filter(veg != "Yes")
 
 # excluding unneeded fields
 clean <- noveg %>%
-  select(-RecordedDate, -veg, -att_check)
+  select(-RecordedDate, -veg, -att_check) %>%
+  mutate(condition = relevel(clean$condition, "dynamic"),
+         cons_proj_c = cons_proj - mean(cons_proj), #centering projected cons
+         conformity_mean_c = conformity_mean - mean(conformity_mean)) %>% #centering conformity
+  cbind(., psych::dummy.code(.$condition))
 
 # outliers
 mahalfiltered = mahalanobis(clean[,c(5:13, 17:22)], colMeans(clean[,c(5:13, 17:22)], na.rm = T), cov(clean[,c(5:13, 17:22)]))
@@ -115,8 +115,8 @@ scat_plots <- clean %>%
   ylab("Value of outcome (%)") +
   papaja::theme_apa()
 
-ggsave(file="test.svg", plot=out_plots)
-ggsave(file="test2.svg", plot=scat_plots)
+ggsave(file="out_dist.svg", plot=out_plots)
+ggsave(file="corr_scat.svg", plot=scat_plots)
 
 # reliability
 cron <- clean %>% select(conformity_1:conformity_6) %>% psych::alpha() # scale reliability
@@ -163,9 +163,8 @@ expectation    ~ static + none'
 h1.fit <- sem(model = h1.mod, data = clean)
 h1.out <-  summary(h1.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
 
-# effect sizes
 h1.effect <- sapply(1:8, function(x) bfrr(-1*h1.out$PE[x, 5],h1.out$PE[x,6], sample_df = h1.out$FIT["ntotal"] - 1, model = "normal", mean = 0, sd = 5, tail = 1, criterion = 3,
-                                          rr_interval = list(mean = c(-15, 15), sd = c(0, 15)), precision = 0.05))[-14,]
+                                          rr_interval = list(mean = c(-15, 15), sd = c(0, 15)), precision = 0.05))[-14,] # effect sizes
 
 h1.rr <- sapply(1:8, function(x) paste0("HN[", toString(h1.effect[,x]$RR$sd), "]"))
 
@@ -192,17 +191,16 @@ h2.test <- apa_print(aov(cons_proj ~ condition, clean))
 ##Does the perceived current and future popularity of sustainable eating behaviours correlate with interest, attitudes, expectations, and intentions to limit own meat consumption? 
 
 h3.mod <- '
-interest       ~ cons_proj
+interest  ~ cons_proj
 attitude  ~ cons_proj
 intention ~ cons_proj
-expectation    ~ cons_proj'
+expectation ~ cons_proj'
 
 h3.fit <- sem(model = h3.mod, data = clean)
 h3.out <-  summary(h3.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
 
-# effect sizes
 h3.effect <- sapply(1:4, function(x) bfrr(h3.out$PE[x, 5],h3.out$PE[x,6], sample_df = h3.out$FIT["ntotal"] - 1, model = "normal", mean = 0, sd = 5, tail = 1, criterion = 3,
-                                          rr_interval = list(mean = c(-15, 15), sd = c(0, 15)), precision = 0.05))[-14,]
+                                          rr_interval = list(mean = c(-15, 15), sd = c(0, 15)), precision = 0.05))[-14,] # effect sizes
 
 h3.rr <- sapply(1:4, function(x) paste0("HN[", toString(h3.effect[,x]$RR$sd), "]"))
 
@@ -213,10 +211,10 @@ h3.table <- cbind(h3.out$PE[1:4, c(1, 3, 5, 11, 6:10)], unlist(h3.effect[3,]), h
 ##Is projected meat consumption a mediator of the effect of trending minority norms vs. minority only on meat consumption outcomes?
 
 h4.mod <- '
-interest       ~ a*cons_proj + b*static
+interest  ~ a*cons_proj + b*static
 attitude  ~ c*cons_proj + d*static
 intention ~ e*cons_proj + f*static
-expectation    ~ g*cons_proj + h*static
+expectation ~ g*cons_proj + h*static
 cons_proj ~ t*static
 
 ta := t*a
@@ -232,23 +230,22 @@ h4.fit <- sem(h4.mod,data=clean, se="bootstrap", test="bootstrap", bootstrap = 5
 h4.out <- summary(h4.fit, standardized = T, ci = T, fit.measures = T)
 h4.pam <- parameterEstimates(h4.fit)
 
-# effect sizes
 h4.table <- h4.out$PE[c(1:9, 28:35),c(1, 3, 6, 13, 7:11)] %>% .[with(., order(rhs, decreasing = FALSE)), ]
 h4.table <- rbind("", h4.table[1:4,], "", h4.table[5:17,] ) %>%
   mutate_at(vars(3:9), ~as.numeric(as.character(.))) %>%
   mutate(pvalue = printp(pvalue),
          lhs = c("~ Projected consumption", "Interest", "Attitude", "Intention", "Expectation", "~ Condition", "Interest", "Attitude", "Intention", "Expectation", "Projected consumption", 
                  "Interest", "Attitude", "Intention", "Expectation", "Interest", "Attitude", "Intention", "Expectation")) %>% 
-  select(., -2)
+  select(., -2) # effect sizes
 
 # H5 ---------------------------
 ##How do demographic factors such as age, gender, and political position predict primary dependent variables relating to meat consumption? 
 
 h5.mod <- '
-interest       ~ static + cons_proj + age + genderbi + politics
+interest  ~ static + cons_proj + age + genderbi + politics
 attitude  ~ static + cons_proj + age + genderbi + politics
 intention ~ static + cons_proj + age + genderbi + politics
-expectation    ~ static + cons_proj + age + genderbi + politics'
+expectation ~ static + cons_proj + age + genderbi + politics'
 
 h5.fit <- sem(model = h5.mod, data = clean)
 h5.out <- summary(h5.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
@@ -256,3 +253,26 @@ h5.out <- summary(h5.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
 h5.table <- h5.out$PE[1:20,c(3, 5, 12, 6:10)] %>%
   mutate(pvalue = printp(pvalue),
          rhs = rep(c("Condition$^a$", "Projected consumption", "Age", "Gender$^b$", "Politics$^c$"), 4))
+
+# Exploratory ---------------------------
+##moderated mediation - CONDITIONAL PROCESS ANALYSIS
+clean$cons_conformity <- clean$cons_proj_c*clean$conformity_mean_c # create the interaction (product) term
+
+exp.mod <- '
+cons_proj_c ~ a*static
+interest ~ b1*cons_proj_c + b2*conformity_mean_c + b3*cons_conformity + c*static
+
+# indirect effect when conformity = 0
+ab0 := a*b1 
+total0 := ab0 + b1 + c
+
+# indirect effect when negexp = -1.0sd (sd=0.8422133)
+ablow := a + b1 + b3*-0.8422133
+totallow := ablow + c
+abhigh := a + b1 + b3*0.8422133
+totalhigh := abhigh + c'
+
+exp.out <- sem(exp.mod, data=clean, meanstructure=TRUE)
+summary(exp.out, fit.measures=TRUE,  rsq=TRUE)
+
+
