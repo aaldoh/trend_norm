@@ -2,7 +2,7 @@
 # contact: az.aldoh@gmail.com/a.aldoh@sussex.ac.uk
 
 # Load packages ---------------------------
-list.of.packages <- c("svglite", "ggplot2", "papaja", "lavaan", "tidyverse", "knitr", "kableExtra", "codebook", "psych", "rlang", "bfrr")
+list.of.packages <- c("here", "MASS", "svglite", "ggplot2", "papaja", "lavaan", "tidyverse", "knitr", "kableExtra", "codebook", "psych", "rlang", "bfrr")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
@@ -11,7 +11,7 @@ set.seed(1234)
 options(mc.cores = parallel::detectCores(), ## Run chains in parallel
         knitr.kable.NA = "") ## Don't show NAs in tables
 
-export <- haven::read_spss("../data/01_EXPORTED.sav")
+export <- haven::read_spss(here("data/01_EXPORTED.sav"))
 
 # Data cleaning ---------------------------
 export[, c(2:5, 15, 17)] <- haven::as_factor(export[, c(2:5, 15, 17)])
@@ -39,17 +39,18 @@ clean <- noveg %>%
   cbind(., psych::dummy.code(.$condition))
 
 # outliers
-mahalfiltered = mahalanobis(clean[,c(5:13, 17:22)], colMeans(clean[,c(5:13, 17:22)], na.rm = T), cov(clean[,c(5:13, 17:22)]))
-cutoff = qchisq(1-.001, ncol(clean[,c(5:13, 17:22)]))
-no_out = subset(clean, mahalfiltered < cutoff)
+mcd     <- cov.mcd(clean[,c(5:13, 17:22)], quantile.used = nrow(clean[,c(5:13, 17:22)])*.75)
+mcd_mah <- mahalanobis(clean[,c(5:13, 17:22)], mcd$center,mcd$cov)
+cutoff  <- qchisq(p = 0.99, df = ncol(clean[,c(5:13, 17:22)]))
+no_out  <- clean[mcd_mah <= cutoff, ]
 
 # correlation
-mcor = cor(clean[,c(5:8, 15, 24, 26)], use = "pairwise.complete.obs")
+mcor = cor(no_out[,c(5:8, 15, 24, 26)], use = "pairwise.complete.obs")
 symnum(mcor)
 
 ##assumption set up
-random = rchisq(nrow(clean), 7)
-fake = lm(random ~., data = clean[ , -1])
+random = rchisq(nrow(no_out), 7)
+fake = lm(random ~., data = no_out[ , -1])
 standardized = rstudent(fake)
 fitted = scale(fake$fitted.values)
 
@@ -59,24 +60,24 @@ assumptions <- list(additivity = cor(mcor[ , -1]) %>% symnum(),
                     linearity = qqnorm(standardized)) ##multivariate linearity
 
 # Data Overview ---------------------------
-describeBy(clean, clean$condition) # check distribution and normality
+describeBy(no_out, no_out$condition) # check distribution and normality
 
 # participants
 data_desc <- c(total_n = nrow(raw),
                incomp_n = nrow(raw) - nrow(complete),
                veg_n = nrow(complete) - nrow(noveg),
-               clean_n = nrow(clean)) 
+               no_out_n = nrow(no_out)) 
 # age
-age_desc <- clean %>%
+age_desc <- no_out %>%
   summarise(min_age = min(age),
             max_age = max(age),
             m_age = printnum(mean(age)),
             sd_age = printnum(sd(age)))
 # gender
-gender_freq <- round(100 * prop.table(table(clean$gender)), digits = 2)
+gender_freq <- round(100 * prop.table(table(no_out$gender)), digits = 2)
 
 # outcomes
-measure_sum <- clean %>%
+measure_sum <- no_out %>%
   summarise(m_interest = mean(interest),
             m_attitude = mean(attitude),
             m_intent = mean(intention),
@@ -92,7 +93,7 @@ measure_sum <- clean %>%
             sd_cons_proj = sd(cons_proj),
             sd_conformity = sd(conformity_mean, na.rm = T))
 
-out_plots <- clean %>%
+out_plots <- no_out %>%
   pivot_longer(cols = interest:expectation, names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = condition, y = value)) +
   facet_wrap(~ variable, labeller = as_labeller(c('attitude'="Attitude", 'expectation'="Expectation", 'intention'="Intention", 'interest'="Interest"))) +
@@ -104,7 +105,7 @@ out_plots <- clean %>%
   scale_x_discrete(limits = c("dynamic", "static", "none"), labels=c("dynamic" = "Trending", "static" = "Minority","none" = "None")) +
   papaja::theme_apa()
 
-scat_plots <- clean %>%
+scat_plots <- no_out %>%
   pivot_longer(cols = interest:expectation, names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = cons_proj, y = value)) +
   facet_wrap(~ variable, labeller = as_labeller(c('attitude'="Attitude", 'expectation'="Expectation", 'intention'="Intention", 'interest'="Interest"))) +
@@ -119,7 +120,7 @@ ggsave(file="out_dist.svg", plot=out_plots)
 ggsave(file="corr_scat.svg", plot=scat_plots)
 
 # reliability
-cron <- clean %>% select(conformity_1:conformity_6) %>% psych::alpha() # scale reliability
+cron <- no_out %>% select(conformity_1:conformity_6) %>% psych::alpha() # scale reliability
 
 # correlation matrix
 measure.tib <- tibble(Measure = c("1. Interest", "2. Attitude", "3. Intention", "4. Expectation", "5. Own consumption", "6. Projected consumption", "7. Conformity"),
@@ -128,14 +129,14 @@ measure.tib <- tibble(Measure = c("1. Interest", "2. Attitude", "3. Intention", 
   cbind(., mcor) %>% select(-conformity_mean) %>% remove_rownames() 
 
 # Randomization check ---------------------------
-age_stat <- apa_print(aov(age ~ condition, clean)) # age
-pol_stat <- apa_print(aov(politics ~ condition, clean)) # political position
-gender_stat <- apa_print(chisq.test(clean$condition, clean$gender), n = nrow(clean)) # gender
-nation_stat <- apa_print(chisq.test(clean$condition, clean$country), n = nrow(clean)) # nation
+age_stat <- apa_print(aov(age ~ condition, no_out)) # age
+pol_stat <- apa_print(aov(politics ~ condition, no_out)) # political position
+gender_stat <- apa_print(chisq.test(no_out$condition, no_out$gender), n = nrow(no_out)) # gender
+nation_stat <- apa_print(chisq.test(no_out$condition, no_out$country), n = nrow(no_out)) # nation
 
 # H1 ---------------------------
 ## Does communicating a trending minority norm increase interest over and above communicating a minority norm only?
-outcomes_desc <- clean %>%
+outcomes_desc <- no_out %>%
   group_by(condition) %>%
   summarise(n = n(),
             m_interest = mean(interest),
@@ -160,7 +161,7 @@ attitude  ~ static + none
 intention ~ static + none
 expectation    ~ static + none'
 
-h1.fit <- sem(model = h1.mod, data = clean)
+h1.fit <- sem(model = h1.mod, data = no_out)
 h1.out <-  summary(h1.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
 
 h1.effect <- sapply(1:8, function(x) bfrr(-1*h1.out$PE[x, 5],h1.out$PE[x,6], sample_df = h1.out$FIT["ntotal"] - 1, model = "normal", mean = 0, sd = 5, tail = 1, criterion = 3,
@@ -168,12 +169,14 @@ h1.effect <- sapply(1:8, function(x) bfrr(-1*h1.out$PE[x, 5],h1.out$PE[x,6], sam
 
 h1.rr <- sapply(1:8, function(x) paste0("HN[", toString(h1.effect[,x]$RR$sd), "]"))
 
-h1.table <- cbind(h1.out$PE[1:8,c(1, 3, 5, 12, 6:10)], unlist(h1.effect[3,]), h1.rr, unlist(h1.effect[5,])) %>% .[with(., order(rhs, decreasing = TRUE)), ] %>% select(., -2) %>%
+h1.table <- cbind(h1.out$PE[1:8,c(1, 3, 5, 12, 6:10)], unlist(h1.effect[3,]), h1.rr, unlist(h1.effect[5,])) %>% 
+  .[with(., order(rhs, decreasing = TRUE)), ] %>% 
+  select(., -2) %>%
   mutate(pvalue = printp(pvalue))
 
 # H2 ---------------------------
 ##Will participants in the trending minority norm condition be more likely (than minority norm only) to expect a decrease in meat consumption by British people? 
-cons_desc <- clean %>%
+cons_desc <- no_out %>%
   group_by(condition) %>%
   summarise(n = n(),
             m_current = mean(cons_now_perc),
@@ -185,7 +188,7 @@ cons_desc <- clean %>%
             sd_six = sd(cons_six_perc),
             sd_composite = sd(cons_proj), .groups = "rowwise")
 
-h2.test <- apa_print(aov(cons_proj ~ condition, clean)) 
+h2.test <- apa_print(aov(cons_proj ~ condition, no_out)) 
 
 # H3 ---------------------------
 ##Does the perceived current and future popularity of sustainable eating behaviours correlate with interest, attitudes, expectations, and intentions to limit own meat consumption? 
@@ -196,7 +199,7 @@ attitude  ~ cons_proj
 intention ~ cons_proj
 expectation ~ cons_proj'
 
-h3.fit <- sem(model = h3.mod, data = clean)
+h3.fit <- sem(model = h3.mod, data = no_out)
 h3.out <-  summary(h3.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
 
 h3.effect <- sapply(1:4, function(x) bfrr(h3.out$PE[x, 5],h3.out$PE[x,6], sample_df = h3.out$FIT["ntotal"] - 1, model = "normal", mean = 0, sd = 5, tail = 1, criterion = 3,
@@ -226,7 +229,7 @@ totatt := tc + d
 totintent := te + f
 totexp := tg + h'
 
-h4.fit <- sem(h4.mod,data=clean, se="bootstrap", test="bootstrap", bootstrap = 5000, meanstructure=TRUE)
+h4.fit <- sem(h4.mod,data=no_out, se="bootstrap", test="bootstrap", bootstrap = 5000, meanstructure=TRUE)
 h4.out <- summary(h4.fit, standardized = T, ci = T, fit.measures = T)
 h4.pam <- parameterEstimates(h4.fit)
 
@@ -247,7 +250,7 @@ attitude  ~ static + cons_proj + age + genderbi + politics
 intention ~ static + cons_proj + age + genderbi + politics
 expectation ~ static + cons_proj + age + genderbi + politics'
 
-h5.fit <- sem(model = h5.mod, data = clean)
+h5.fit <- sem(model = h5.mod, data = no_out)
 h5.out <- summary(h5.fit, standardized = T, ci = T, fit.measures = T, rsq = T)
 
 h5.table <- h5.out$PE[1:20,c(3, 5, 12, 6:10)] %>%
@@ -256,7 +259,7 @@ h5.table <- h5.out$PE[1:20,c(3, 5, 12, 6:10)] %>%
 
 # Exploratory ---------------------------
 ##moderated mediation - CONDITIONAL PROCESS ANALYSIS
-clean$cons_conformity <- clean$cons_proj_c*clean$conformity_mean_c # create the interaction (product) term
+no_out$cons_conformity <- no_out$cons_proj_c*no_out$conformity_mean_c # create the interaction (product) term
 
 exp.mod <- '
 cons_proj_c ~ a*static
@@ -272,7 +275,7 @@ totallow := ablow + c
 abhigh := a + b1 + b3*0.8422133
 totalhigh := abhigh + c'
 
-exp.out <- sem(exp.mod, data=clean, meanstructure=TRUE)
+exp.out <- sem(exp.mod, data=no_out, meanstructure=TRUE)
 summary(exp.out, fit.measures=TRUE,  rsq=TRUE)
 
 

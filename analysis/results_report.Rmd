@@ -26,7 +26,7 @@ After participants read the statements, they completed dependent measures relati
 
 ## Participants
 
-A total of `r data_desc[[1]]` participants were recruited through a survey posted on Prolific. `r data_desc[[2]]` were excluded due to incomplete responses, and `r data_desc[[3]]` were excluded as they are vegan/vegetarian. The final sample (*N* = `r data_desc[[4]]`) ranged in age `r age_desc$min_age` to `r age_desc$max_age` (*M~age~* = `r age_desc$m_age`, *SD* = `r age_desc$sd_age`). The participants were predominantly female (`r gender_freq[2]`%). The participants received £0.35 ($0.45) for successfully completing the task.
+A total of `r data_desc[[1]]` participants were recruited through a survey posted on Prolific. `r data_desc[[2]]` were excluded due to incomplete responses, and `r data_desc[[3]]` were excluded as they are vegan/vegetarian. Using a robust Mahalanobis distance based on the Minimum Covariance Determinant, `r nrow(clean) - nrow(no_out)` multivariate outliers were detected and removed. The final sample (*N* = `r data_desc[[4]]`) ranged in age `r age_desc$min_age` to `r age_desc$max_age` (*M~age~* = `r age_desc$m_age`, *SD* = `r age_desc$sd_age`). The participants were predominantly female (`r gender_freq[2]`%). The participants received £0.35 ($0.45) for successfully completing the task.
 
 ## Normative statements
 
@@ -168,6 +168,6 @@ h5.table %>%
 # Codebook
 
 ```{r codebook}
-codebook::codebook_table(clean) %>% kable()
+codebook::codebook_table(clean)
 ```
 
